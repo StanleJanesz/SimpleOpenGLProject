@@ -34,8 +34,8 @@ const char* vertexShaderSource = R"(
     uniform mat4 projection;
     
     void main() {
-        FragPos = vec3(model * vec4(aPos, 1.0));
-        Normal = mat3(transpose(inverse(model))) * aNormal;
+        FragPos = vec3(view * model * vec4(aPos, 1.0));
+        Normal =  mat3(transpose(inverse(view * model))) * aNormal;
         gl_Position = projection * view * model * vec4(aPos, 1.0);
     }
 )";
@@ -81,7 +81,7 @@ struct Light {
     vec3 calculateSpecular(vec3 lightColor,vec3 lightDir)
     {   
         float specularStrength = 0.7;
-        vec3 viewDir = normalize(viewPos - FragPos);
+        vec3 viewDir = normalize(- FragPos);
         vec3 norm = normalize(Normal);
         vec3 reflectDir = reflect(-lightDir, norm);
         float spec = pow(max(dot(viewDir, reflectDir), 0.0), 8);
@@ -100,7 +100,7 @@ struct Light {
 	}
       vec3 calculateFog(vec3 objectColor)
 	{
-		float fogDistance = distance(viewPos);
+		float fogDistance = length(FragPos);
 		float fogFactor = exp(- fogDensity  * fogDistance);
         vec3 fogColor = vec3(0.6, 0.6, 0.6);
         return fogFactor * objectColor + (1 - fogFactor) * fogColor;
@@ -300,29 +300,35 @@ void drawCube(float time, GLuint shaderProgram, GLuint VAO, Light lights[4], glm
     model = glm::rotate(model, time * 0.5f, glm::vec3(0.0f, 0.0f, 1.0f));
 
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view)); 
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection)); 
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[1].position"), 1, glm::value_ptr(lights[1].position));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[0].position"), 1, glm::value_ptr(lights[0].position));
-    glUniform1i(glGetUniformLocation(shaderProgram, "lights[1].type"), lights[1].type);
-
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glm::vec3 pos1 = glm::vec3(view * glm::vec4(lights[1].position, 1.0));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[1].position"), 1, glm::value_ptr(pos1));
     glUniform3fv(glGetUniformLocation(shaderProgram, "lights[1].color"), 1, glm::value_ptr(lights[1].color));
+    glUniform1i(glGetUniformLocation(shaderProgram, "lights[1].type"), lights[1].type);
+    glm::vec3 pos0 = glm::vec3(view * glm::vec4(lights[0].position, 1.0));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[0].position"), 1, glm::value_ptr(pos0));
     glUniform3fv(glGetUniformLocation(shaderProgram, "lights[0].color"), 1, glm::value_ptr(lights[0].color));
     glUniform1i(glGetUniformLocation(shaderProgram, "lights[0].type"), lights[0].type);
-    glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
-
-    glUniform1i(glGetUniformLocation(shaderProgram, "isFog"), isFog);
-    glUniform1f(glGetUniformLocation(shaderProgram, "fogDensity"), fogDensity);
 
     glUniform1i(glGetUniformLocation(shaderProgram, "isDayLight"), isDayLight);
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[2].direction"), 1, glm::value_ptr(lights[2].direction));
+    glm::vec3 dir2 = glm::vec3(view * glm::vec4(lights[2].position, 1.0));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[2].direction"), 1, glm::value_ptr(dir2));
     glUniform3fv(glGetUniformLocation(shaderProgram, "lights[2].color"), 1, glm::value_ptr(lights[2].color));
     glUniform1i(glGetUniformLocation(shaderProgram, "lights[2].type"), lights[2].type);
 
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].position"), 1, glm::value_ptr(lights[3].position));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].direction"), 1, glm::value_ptr(lights[3].direction));
+    glm::vec3 pos3 = glm::vec3(view * glm::vec4(lights[3].position, 1.0));
+    glm::vec3 dir3 = glm::vec3(view * glm::vec4(lights[3].position, 1.0));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].position"), 1, glm::value_ptr(pos3));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].direction"), 1, glm::value_ptr(dir3));
     glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].color"), 1, glm::value_ptr(lights[3].color));
     glUniform1i(glGetUniformLocation(shaderProgram, "lights[3].type"), lights[3].type);
+
+    glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
+
+
+    glUniform1i(glGetUniformLocation(shaderProgram, "isFog"), isFog);
+    glUniform1f(glGetUniformLocation(shaderProgram, "fogDensity"), fogDensity);
 
     glBindVertexArray(VAO);
     glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -339,22 +345,26 @@ void drawSphere(float time, GLuint shaderProgram, GLuint VAO, Light lights[4], g
 
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glm::vec3 pos1 = view  * glm::vec4(lights[1].position, 1.0);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[1].position"), 1, glm::value_ptr(lights[1].position));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[1].position"), 1, glm::value_ptr(pos1));
     glUniform3fv(glGetUniformLocation(shaderProgram, "lights[1].color"), 1, glm::value_ptr(lights[1].color));
     glUniform1i(glGetUniformLocation(shaderProgram, "lights[1].type"), lights[1].type);
-
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[0].position"), 1, glm::value_ptr(lights[0].position));
+	glm::vec3 pos0 = view  * glm::vec4(lights[0].position, 1.0);
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[0].position"), 1, glm::value_ptr(pos0));
     glUniform3fv(glGetUniformLocation(shaderProgram, "lights[0].color"), 1, glm::value_ptr(lights[0].color));
     glUniform1i(glGetUniformLocation(shaderProgram, "lights[0].type"), lights[0].type);
 
     glUniform1i(glGetUniformLocation(shaderProgram, "isDayLight"), isDayLight);
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[2].direction"), 1, glm::value_ptr(lights[2].direction));
+    glm::vec3 dir2 = view  * glm::vec4(lights[2].direction, 1.0);
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[2].direction"), 1, glm::value_ptr(dir2));
     glUniform3fv(glGetUniformLocation(shaderProgram, "lights[2].color"), 1, glm::value_ptr(lights[2].color));
     glUniform1i(glGetUniformLocation(shaderProgram, "lights[2].type"), lights[2].type);
 
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].position"), 1, glm::value_ptr(lights[3].position));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].direction"), 1, glm::value_ptr(lights[3].direction));
+    glm::vec3 pos3 = view  * glm::vec4(lights[3].position, 1.0);
+    glm::vec3 dir3 = view  * glm::vec4(lights[3].direction, 1.0);
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].position"), 1, glm::value_ptr(pos3));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].direction"), 1, glm::value_ptr(dir3));
     glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].color"), 1, glm::value_ptr(lights[3].color));
     glUniform1i(glGetUniformLocation(shaderProgram, "lights[3].type"), lights[3].type);
 
@@ -498,10 +508,14 @@ int main() {
 
     unsigned int cameraNumber = 0;
 	Light lights[4];
-	lights[0].position = glm::vec3(0.0f, 0.0f, 0.0f);
+	glm::vec3 po1 = glm::vec3(0.0f, 1.0f, 0.0f);
+	glm::vec3 po2 = glm::vec3(0.0f, 0.0f, 1.0f);
+	glm::vec3 po3 = glm::vec3(0.0f, 0.0f, 1.0f);
+	glm::vec3 po4 = glm::vec3(0.0f, 0.0f, 0.0f);
+	lights[0].position = glm::vec3(0.0f, 0.0f, 1.0f);
 	lights[0].color = glm::vec3(1.0f, 1.0f, 1.0f);
 	lights[0].type = 0;
-	lights[1].position = glm::vec3(0.0f, 0.0f, 0.0f);
+	lights[1].position = glm::vec3(0.0f, 1.0f, 0.0f);
 	lights[1].color = glm::vec3(1.0f, 1.0f, 1.0f);
 	lights[1].type = 0;
 	lights[2].direction = glm::vec3(0.0f, 0.0f, 1.0f);
