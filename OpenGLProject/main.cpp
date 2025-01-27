@@ -9,6 +9,16 @@
 
 
 
+struct Light {
+    glm::vec3 position;
+    glm::vec3 color;
+    glm::vec3 direction;
+    int type;
+    // type 0 = point light
+    // type 1 = directional light
+    // type 2 = spot light
+};
+
 
 // Vertex shader
 const char* vertexShaderSource = R"(
@@ -33,60 +43,130 @@ const char* vertexShaderSource = R"(
 // Fragment shader
 const char* fragmentShaderSource = R"(
     #version 330 core
+
     out vec4 FragColor;
     
     in vec3 FragPos;
     in vec3 Normal;
     
-    uniform vec3 lightPos;
-    uniform vec3 lightPos1;
-    uniform vec3 lightColor;
-    uniform vec3 lightColor1;
+
+struct Light {
+    vec3 position;
+    vec3 color;
+    vec3 direction;
+    int type;
+    // type 0 = point light
+    // type 1 = directional light
+    // type 2 = spot light
+};
+
     uniform vec3 viewPos;
-    
+    uniform bool isDayLight;
+    uniform Light lights[4];
+	uniform bool isFog;
+    uniform float fogDensity;
+    uniform mat4 model;
     vec3 calculateAmbient(vec3 lightColor)
     {
         float ambientStrength = 0.3;
         return ambientStrength * lightColor;
     }
-    vec3 calculateDiffuse(vec3 lightPos, vec3 lightColor)
+    vec3 calculateDiffuse(vec3 lightColor,vec3 lightDir)
     {
         vec3 norm = normalize(Normal);
-        vec3 lightDir = normalize(lightPos - FragPos);
+        
         float diff = max(dot(norm, lightDir), 0.0);
         return diff * lightColor;
     }
-    vec3 calculateSpecular(vec3 lightPos, vec3 lightColor)
+    vec3 calculateSpecular(vec3 lightColor,vec3 lightDir)
     {   
         float specularStrength = 0.7;
         vec3 viewDir = normalize(viewPos - FragPos);
-        vec3 lightDir = normalize(lightPos - FragPos);
         vec3 norm = normalize(Normal);
         vec3 reflectDir = reflect(-lightDir, norm);
         float spec = pow(max(dot(viewDir, reflectDir), 0.0), 8);
         return specularStrength * spec * lightColor;
     }
-    
-        
+    float distance(vec3 lightPos)
+	{
+		return length(lightPos - FragPos);
+	}
+    float attenuation(float distance)
+    {
+        float constant = 1.0;
+		float linear = 0.09;
+		float quadratic = 0.032;
+		return 1.0 / (constant + linear * distance + quadratic * (distance * distance));
+	}
+      vec3 calculateFog(vec3 objectColor)
+	{
+		float fogDistance = distance(viewPos);
+		float fogFactor = exp(- fogDensity  * fogDistance);
+        vec3 fogColor = vec3(0.6, 0.6, 0.6);
+        return fogFactor * objectColor + (1 - fogFactor) * fogColor;
+	}
     vec3 calculateLight(vec3 lightPos, vec3 lightColor) {
-       
-        vec3 ambient = calculateAmbient(lightColor);
-        
-        vec3 diffuse = calculateDiffuse(lightPos, lightColor);
-        
-   
-        vec3 specular = calculateSpecular(lightPos, lightColor);
-        
-        return (ambient + diffuse + specular);
-    }
 
+       vec3 lightDir = normalize(lightPos - FragPos);
+        float dist = distance(lightPos);
+		float att = attenuation(dist);
+        vec3 ambient = calculateAmbient(lightColor) * att;
+        
+        vec3 diffuse = calculateDiffuse(lightColor, lightDir) * att;
+   
+        vec3 specular = calculateSpecular(lightColor, lightDir) * att;
+
+        
+
+        return (ambient + diffuse + specular) ;
+    }
+   
+
+ vec3 calculateDirectionalLight(vec3 lightDir, vec3 lightColor) {
+
+		vec3 ambient = calculateAmbient(lightColor);
+        
+        vec3 diffuse = calculateDiffuse(lightColor, -lightDir);
+   
+        vec3 specular = calculateSpecular(lightColor, -lightDir);
+        
+		return (ambient + diffuse + specular);
+	}
+vec3 calculateSpotLight(vec3 lightPos, vec3 lightColor, vec3 spotLightDirection) {
+        vec3 lightDir = normalize(lightPos - FragPos);
+        float dist = distance(lightPos);
+		float att = attenuation(dist);
+		float theta = dot(lightDir, normalize(-spotLightDirection));
+        float cutOff = 0.91;
+		float outerCutOff = 0.82;
+		float epsilon   = cutOff - outerCutOff;
+        float intensity = clamp((theta - outerCutOff) / epsilon, 0.0, 1.0);
+        
+        vec3 ambient = calculateAmbient(lightColor) ;
+        
+        vec3 diffuse = calculateDiffuse(lightColor, lightDir)  * intensity;
+   
+        vec3 specular = calculateSpecular(lightColor, lightDir)  * intensity;
+        vec3 result = ambient;
+		if (theta > cutOff)
+			result = result + diffuse + specular;
+
+        return result;
+	}
     void main() {
         
-        vec3 result1 = calculateLight(lightPos1, lightColor1);
-        vec3 result2 = calculateLight(lightPos, lightColor);
+        vec3 result1 = calculateLight(lights[1].position, lights[1].color);
+        vec3 result2 = calculateLight(lights[0].position, lights[0].color);
+		vec3 result3 = calculateDirectionalLight(lights[2].direction, lights[2].color);
+        vec3 result4 = calculateSpotLight(lights[3].position, lights[3].color, lights[3].direction);
 
         vec3 objectColor = vec3(0.2, 0.5, 0.8);  // Blue-ish color
-        vec3 result = (result1 + result2) * objectColor;
+        if (isFog)
+            objectColor = calculateFog(objectColor);
+        vec3 result = result1 + result2 + result4;
+        if (isDayLight)
+            result = result + result3;
+        result  = result * objectColor;
         FragColor = vec4(result, 1.0);
     }
 )";
@@ -211,7 +291,7 @@ float vertices[] = {
     -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
     -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f
 };
-void drawCube(float time, GLuint shaderProgram, GLuint VAO, glm::vec3 lightPos, glm::vec3 lightColor, glm::vec3 lightPos1, glm::vec3 lightColor1,    glm::vec3 viewPos, glm::mat4 view, glm::mat4 projection,glm::vec3 position)
+void drawCube(float time, GLuint shaderProgram, GLuint VAO, Light lights[4], glm::vec3 viewPos, glm::mat4 view, glm::mat4 projection,glm::vec3 position, bool isDayLight,bool isFog, float fogDensity)
 {
     // Draw cube
     glUseProgram(shaderProgram);
@@ -222,17 +302,33 @@ void drawCube(float time, GLuint shaderProgram, GLuint VAO, glm::vec3 lightPos, 
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view)); 
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection)); 
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lightPos1"), 1, glm::value_ptr(lightPos1));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lightPos"), 1, glm::value_ptr(lightPos));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor1"), 1, glm::value_ptr(lightColor1));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, glm::value_ptr(lightColor));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[1].position"), 1, glm::value_ptr(lights[1].position));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[0].position"), 1, glm::value_ptr(lights[0].position));
+    glUniform1i(glGetUniformLocation(shaderProgram, "lights[1].type"), lights[1].type);
+
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[1].color"), 1, glm::value_ptr(lights[1].color));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[0].color"), 1, glm::value_ptr(lights[0].color));
+    glUniform1i(glGetUniformLocation(shaderProgram, "lights[0].type"), lights[0].type);
     glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
+
+    glUniform1i(glGetUniformLocation(shaderProgram, "isFog"), isFog);
+    glUniform1f(glGetUniformLocation(shaderProgram, "fogDensity"), fogDensity);
+
+    glUniform1i(glGetUniformLocation(shaderProgram, "isDayLight"), isDayLight);
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[2].direction"), 1, glm::value_ptr(lights[2].direction));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[2].color"), 1, glm::value_ptr(lights[2].color));
+    glUniform1i(glGetUniformLocation(shaderProgram, "lights[2].type"), lights[2].type);
+
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].position"), 1, glm::value_ptr(lights[3].position));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].direction"), 1, glm::value_ptr(lights[3].direction));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].color"), 1, glm::value_ptr(lights[3].color));
+    glUniform1i(glGetUniformLocation(shaderProgram, "lights[3].type"), lights[3].type);
 
     glBindVertexArray(VAO);
     glDrawArrays(GL_TRIANGLES, 0, 36);
 
 }
-void drawSphere(float time, GLuint shaderProgram, GLuint VAO, glm::vec3 lightPos, glm::vec3 lightColor, glm::vec3 lightPos1, glm::vec3 lightColor1, glm::vec3 viewPos, glm::mat4 view, glm::mat4 projection, glm::vec3 position, std::vector<unsigned int> indices)
+void drawSphere(float time, GLuint shaderProgram, GLuint VAO, Light lights[4], glm::vec3 viewPos, glm::mat4 view, glm::mat4 projection, glm::vec3 position, std::vector<unsigned int> indices,  bool isDayLight, bool isFog, float fogDensity)
 {
     // Draw cube
     glUseProgram(shaderProgram);
@@ -244,11 +340,29 @@ void drawSphere(float time, GLuint shaderProgram, GLuint VAO, glm::vec3 lightPos
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lightPos1"), 1, glm::value_ptr(lightPos1));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lightPos"), 1, glm::value_ptr(lightPos));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor1"), 1, glm::value_ptr(lightColor1));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, glm::value_ptr(lightColor));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[1].position"), 1, glm::value_ptr(lights[1].position));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[1].color"), 1, glm::value_ptr(lights[1].color));
+    glUniform1i(glGetUniformLocation(shaderProgram, "lights[1].type"), lights[1].type);
+
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[0].position"), 1, glm::value_ptr(lights[0].position));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[0].color"), 1, glm::value_ptr(lights[0].color));
+    glUniform1i(glGetUniformLocation(shaderProgram, "lights[0].type"), lights[0].type);
+
+    glUniform1i(glGetUniformLocation(shaderProgram, "isDayLight"), isDayLight);
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[2].direction"), 1, glm::value_ptr(lights[2].direction));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[2].color"), 1, glm::value_ptr(lights[2].color));
+    glUniform1i(glGetUniformLocation(shaderProgram, "lights[2].type"), lights[2].type);
+
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].position"), 1, glm::value_ptr(lights[3].position));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].direction"), 1, glm::value_ptr(lights[3].direction));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[3].color"), 1, glm::value_ptr(lights[3].color));
+    glUniform1i(glGetUniformLocation(shaderProgram, "lights[3].type"), lights[3].type);
+
     glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
+
+
+    glUniform1i(glGetUniformLocation(shaderProgram, "isFog"), isFog);
+    glUniform1f(glGetUniformLocation(shaderProgram, "fogDensity"), fogDensity);
 
     glBindVertexArray(VAO);
     glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
@@ -316,7 +430,7 @@ int main() {
     std::vector<unsigned int> indicesS;
     createSphere(verticesS, indicesS, 0.33f, 32, 16);
 
-
+    
 
     // Create and bind VAOs and VBOs
     GLuint VAOs, VBOs, EBOs;
@@ -383,30 +497,45 @@ int main() {
     glEnableVertexAttribArray(0);
 
     unsigned int cameraNumber = 0;
+	Light lights[4];
+	lights[0].position = glm::vec3(0.0f, 0.0f, 0.0f);
+	lights[0].color = glm::vec3(1.0f, 1.0f, 1.0f);
+	lights[0].type = 0;
+	lights[1].position = glm::vec3(0.0f, 0.0f, 0.0f);
+	lights[1].color = glm::vec3(1.0f, 1.0f, 1.0f);
+	lights[1].type = 0;
+	lights[2].direction = glm::vec3(0.0f, 0.0f, 1.0f);
+    lights[2].color = glm::vec3(1.0f, 1.0f, 1.0f);
+    lights[2].type = 1;
+    lights[3].position = glm::vec3(0.0f, 0.0f, 0.7f);
+    lights[3].direction = glm::vec3(0.0f, 0.0f, -1.0f);
+    lights[3].color = glm::vec3(1.0f, 1.0f, 1.0f);
+    lights[3].type = 2;
+	bool isDaytLight = false;
+	float time = glfwGetTime();
+    float radius = 2.0f;
+	float fogDensity = 0.2;
+	bool isFog = false;
     // Render loop
     while (!glfwWindowShouldClose(window)) {
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // Calculate light position
-        float time = glfwGetTime();
-        float radius = 2.0f;
-        glm::vec3 lightPos(
-            sin(time) * radius,
-            0.5f,
-            cos(time) * radius
-        );
-        glm::vec3 lightColor(1.0f, 0.0f, 0.0f);
+        time = glfwGetTime();
+		fogDensity = (sin(time/5)+1.0f)/2.0f;
+		lights[0].position = glm::vec3(
+			sin(time) * radius,
+			0.5f,
+			cos(time) * radius
+		);
+        lights[3].direction = glm::vec3(0.0f, sin(time) * radius, -1.0f);
 
-        glm::vec3 lightPos1(
-            0.0f,
-            1.0f,
-            0.0f
-        );
-
-
-        glm::vec3 lightColor1(0.0f, 0.0f, 1.0f);
-
+		lights[1].position = glm::vec3(
+			0.0f,
+			1.0f,
+			0.0f
+		);
         glm::vec3 viewPos;
         glm::mat4 view;
         glm::mat4 projection;
@@ -420,30 +549,30 @@ int main() {
         else if (cameraNumber == 1)
         {
             viewPos = glm::vec3(0.0f, 5.0f, 0.0f);
-            view = glm::lookAt(lightPos * 1.5f, lightPos, glm::vec3(0.0f, 0.0f, 1.0f));
+            view = glm::lookAt(lights[0].position * 1.5f, lights[0].position, glm::vec3(0.0f, 0.0f, 1.0f));
             projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
         }
         else
         {
             viewPos = glm::vec3(5.0f, 0.0f, 0.0f);
-            view = glm::lookAt(viewPos, lightPos, glm::vec3(0.0f, 0.0f, 1.0f));
+            view = glm::lookAt(viewPos, lights[0].position, glm::vec3(0.0f, 0.0f, 1.0f));
             projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
         }
         glm::vec3 position = glm::vec3(1.0f, -1.0f, 1.0f);
-        drawSphere(time, cubeShaderProgram, VAOs, lightPos, lightColor, lightPos1, lightColor1, viewPos, view, projection, position,indicesS);
+        drawSphere(time, cubeShaderProgram, VAOs, lights, viewPos, view, projection, position,indicesS,isDaytLight, isFog, fogDensity); 
 
         position = glm::vec3(0.0f, 1.0f, 0.0f);
-        drawSphere(time, cubeShaderProgram, VAOs, lightPos, lightColor, lightPos1, lightColor1, viewPos, view, projection, position,indicesS);
+        drawSphere(time, cubeShaderProgram, VAOs, lights, viewPos, view, projection, position,indicesS, isDaytLight, isFog, fogDensity);
 
         position = glm::vec3(-1.0f, 1.0f, 0.0f);
-        drawCube(time, cubeShaderProgram, cubeVAO, lightPos, lightColor, lightPos1, lightColor1, viewPos, view, projection, position);
+        drawCube(time, cubeShaderProgram, cubeVAO, lights, viewPos, view, projection, position, isDaytLight, isFog, fogDensity);
         position = glm::vec3(0.0f, 1.0f, 1.0f);
-        drawCube(time, cubeShaderProgram, cubeVAO, lightPos, lightColor, lightPos1, lightColor1, viewPos, view, projection, position);
+        drawCube(time, cubeShaderProgram, cubeVAO, lights, viewPos, view, projection, position, isDaytLight, isFog, fogDensity);
         position = glm::vec3(1.0f, 1.0f, -0.5f);
-        drawCube(time, cubeShaderProgram, cubeVAO, lightPos, lightColor, lightPos1, lightColor1, viewPos, view, projection, position);
+        drawCube(time, cubeShaderProgram, cubeVAO, lights, viewPos, view, projection, position, isDaytLight, isFog, fogDensity);
         glUseProgram(lightShaderProgram);
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, lightPos);
+        model = glm::translate(model, lights[0].position);
         model = glm::scale(model, glm::vec3(0.01f));
 
         glUniformMatrix4fv(glGetUniformLocation(lightShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
@@ -457,7 +586,7 @@ int main() {
         // Draw light source 1
         glUseProgram(lightShaderProgram);
         model = glm::mat4(1.0f);
-        model = glm::translate(model, lightPos1);
+        model = glm::translate(model, lights[1].position);
         model = glm::scale(model, glm::vec3(0.01f));
 
         glUniformMatrix4fv(glGetUniformLocation(lightShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
@@ -481,6 +610,14 @@ int main() {
             cameraNumber = 1;
         if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
             cameraNumber = 2;
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+			isDaytLight = true;
+        if (glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS)
+            isDaytLight = false;
+        if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
+            isFog = true;
+        if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS)
+            isFog = false;
     }
 
     // Cleanup
