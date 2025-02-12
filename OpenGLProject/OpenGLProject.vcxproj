@@ -81,7 +81,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)\Externals\GLEW\libs;$(SolutionDir)\Externals\GLFW\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Users\stani\source\repos\StanleJanesz\SimpleOpenGLProject\Externals\GLEW\libs;C:\Users\stani\source\repos\StanleJanesz\SimpleOpenGLProject\Externals\GLFW\lib-vc2022</AdditionalLibraryDirectories>
       <AdditionalDependencies>opengl32.lib;glew32.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -100,7 +100,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Users\stani\source\repos\StanleJanesz\SimpleOpenGLProject\Externals\GLFW\lib-vc2022;C:\Users\stani\source\repos\StanleJanesz\SimpleOpenGLProject\Externals\GLEW\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Users\stani\source\repos\StanleJanesz\SimpleOpenGLProject\Externals\GLEW\libs;C:\Users\stani\source\repos\StanleJanesz\SimpleOpenGLProject\Externals\GLFW\lib-vc2022</AdditionalLibraryDirectories>
       <AdditionalDependencies>opengl32.lib;glew32.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -115,7 +115,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)\Externals\GLEW\lib\Release\Win32;$(SolutionDir)\Externals\GLFW\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Users\stani\source\repos\StanleJanesz\SimpleOpenGLProject\Externals\GLEW\libs;C:\Users\stani\source\repos\StanleJanesz\SimpleOpenGLProject\Externals\GLFW\lib-vc2022</AdditionalLibraryDirectories>
       <AdditionalDependencies>opengl32.lib;glew32.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -134,7 +134,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)\Externals\GLEW\lib\Release\Win32;$(SolutionDir)\Externals\GLFW\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Users\stani\source\repos\StanleJanesz\SimpleOpenGLProject\Externals\GLEW\libs;C:\Users\stani\source\repos\StanleJanesz\SimpleOpenGLProject\Externals\GLFW\lib-vc2022</AdditionalLibraryDirectories>
       <AdditionalDependencies>opengl32.lib;glew32.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
