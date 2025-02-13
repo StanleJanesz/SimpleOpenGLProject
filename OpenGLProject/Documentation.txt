@@ -1,0 +1,33 @@
+Dokumentation
+
+Program has to be run in x32/x86
+
+Program behawior can be changed using keyboard.
+Below are writen down implemeted interactions together with keys selected for tchem.
+
+	Day light -> ON(D)/OFF(N)
+	Fog -> ON(F)/OFF(G)
+	Pong/ Phong-Blinn -> Phong(P)/Blinn(B)
+	Close window -> Esc 
+	Shineiness -> UP(X)/DOWN(Z)
+
+Cameras
+	1) Constant Camera -> 1
+	2) Constant Camera Looking at moving object -> 2
+	3) Camera Following moving object -> 3
+	4) Constatnt high-placed Camera -> 4
+
+
+Spot light placed on moving object can be moved with
+	Y plane -> UP(KEY_UP)/DOWN(KEY_DOWN)
+	X plane -> UP(KEY_RIGHT)/DOWN(KEY_LEFT)
+
+numer 6 
+deffered shading:
+	program uses deffered shading 
+	in geometry pass calculated is only g-buffer 
+	in lighting pass calculated are colors based on lights and fog
+Phong/Blinn
+	Program can be changed between phong Phong and Blinn-Phong lighting models 
+	additionally shininess can be changed from 1 to 64
+	
