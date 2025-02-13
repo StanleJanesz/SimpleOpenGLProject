@@ -140,6 +140,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Objects.cpp" />
+    <ClCompile Include="ShaderSetUp.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="GeometryShaders.hpp" />
+    <ClInclude Include="LightingShaders.hpp" />
+    <ClInclude Include="Objects.hpp" />
+    <ClInclude Include="ShaderSetUp.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
